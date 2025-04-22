@@ -9,7 +9,7 @@ from model import MLP
 
 # === Config ===
 DIGIT_RANGE = list(range(5, 10))
-SERVER_URL = "http://localhost:5000"
+SERVER_URL = "http://10.255.255.254"
 PORT = "6002"
 EPOCHS = 3
 BATCH_SIZE = 64

@@ -7,9 +7,10 @@ from torchvision import datasets, transforms
 import requests
 from model import MLP
 
+
 # === Config ===
 DIGIT_RANGE = list(range(0, 5))
-SERVER_URL = "http://localhost:5000"
+SERVER_URL = "http://10.255.255.254"
 PORT = "6001"
 EPOCHS = 3
 BATCH_SIZE = 64
