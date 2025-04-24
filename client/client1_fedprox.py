@@ -19,7 +19,7 @@ EPOCHS_PER_ROUND = 1
 NUM_ROUNDS = 20
 BATCH_SIZE = 64
 LR = 0.01
-MU = 0.01  # FedProx regularization strength
+MU = 1  # FedProx regularization strength
 
 
 # === Load Data ===
@@ -48,11 +48,20 @@ def train_and_validate(model, optimizer, criterion, train_loader, val_loader, gl
     # Train
     model.train()
     total_loss, correct, total = 0.0, 0, 0
+
     for inputs, labels in train_loader:
         inputs = inputs.view(inputs.size(0), -1)
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = criterion(outputs, labels)
+
+        # === FedProx penalty ===
+        if global_weights is not None:
+            prox_reg = 0.0
+            for name, param in model.named_parameters():
+                prox_reg += ((param - global_weights[name].to(param.device)) ** 2).sum()
+            loss += (MU / 2) * prox_reg
+
         loss.backward()
         optimizer.step()
 
@@ -64,7 +73,7 @@ def train_and_validate(model, optimizer, criterion, train_loader, val_loader, gl
     train_loss = total_loss / total
     train_acc = 100.0 * correct / total
 
-    # Validation
+    # === Validation (unchanged) ===
     model.eval()
     with torch.no_grad():
         total_loss, correct, total = 0.0, 0, 0
@@ -81,6 +90,7 @@ def train_and_validate(model, optimizer, criterion, train_loader, val_loader, gl
     val_acc = 100.0 * correct / total
 
     return train_loss, train_acc, val_loss, val_acc
+
 
 
 
@@ -119,7 +129,13 @@ for round_num in range(1, NUM_ROUNDS + 1):
     # Step 2: Local Training
     try:
         print(f"[{PORT}] ⏳ Starting local training for round {round_num}...")
-        train_loss, train_acc, val_loss, val_acc = train_and_validate(model, optimizer, criterion, train_loader, val_loader)
+        # Save a frozen copy of global weights for FedProx
+        global_weights = {name: param.clone().detach() for name, param in model.named_parameters()}
+
+        # Pass global_weights to training
+        train_loss, train_acc, val_loss, val_acc = train_and_validate(
+            model, optimizer, criterion, train_loader, val_loader, global_weights
+)
         print(f"[{PORT}] ✅ Round {round_num} - Train Loss: {train_loss:.4f}, Acc: {train_acc:.2f}% | Val Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%")
 
         # Save to CSV

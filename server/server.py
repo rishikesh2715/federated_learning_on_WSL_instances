@@ -8,8 +8,15 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from client.model import MLP
 from evaluator import evaluate_model
 
+from client.model import save_model
+
 app = Flask(__name__)
 model = MLP()
+# model.load_state_dict(torch.load("models/global_model_pretrained.pth"))
+
+
+NUM_ROUNDS = 20
+
 
 EXPECTED_CLIENTS = {"6001", "6002"}
 current_server_round = 1
@@ -54,10 +61,26 @@ def upload_model():
             avg_weights = average_weights(list(weight_buffer_per_round[client_round].values()))
             model.load_state_dict(avg_weights)
 
-            acc = evaluate_model(model)
-            print(f"📊 Round {client_round} Accuracy: {acc:.2f}%")
-            with open("server/accuracy_log.txt", "a") as f:
-                f.write(f"{client_round},{acc:.2f}\n")
+            loss, acc = evaluate_model(model)
+            print(f"📊 Round {client_round} - Global Acc: {acc:.2f}% | Loss: {loss:.4f}")
+
+            # Save accuracy to a log file
+            log_path = "server/global_log.csv"
+            write_header = not os.path.exists(log_path)
+
+            with open(log_path, "a") as f:
+                if write_header:
+                    f.write("round,loss,accuracy\n")
+                f.write(f"{client_round},{loss:.4f},{acc:.2f}\n")
+
+            # ✅ Only save after final round
+            if client_round == NUM_ROUNDS:
+                os.makedirs("models", exist_ok=True)
+                save_model(model, "models/global_model_final.pth")
+                print(f"💾 Saved global model after final round {client_round}.")
+
+
+
 
             weight_buffer_per_round.pop(client_round, None)
             ready_clients_per_round.pop(client_round, None)
