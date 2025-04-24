@@ -86,8 +86,19 @@ for round_num in range(1, NUM_ROUNDS + 1):
         break
 
     # Step 2: Local Training
-    train_local(model, optimizer, criterion)
-    print(f"[{PORT}] ✅ Finished training.")
+    try:
+        print(f"[{PORT}] ⏳ Starting local training for round {round_num}...")
+        loss, acc = train_local(model, optimizer, criterion, train_loader)
+        print(f"[{PORT}] ✅ Local training done. Loss: {loss:.4f}, Acc: {acc:.2f}%")
+
+        # Save to CSV log
+        with open(f"client/{PORT}_log.csv", "a") as f:
+            f.write(f"{round_num},{loss:.4f},{acc:.2f}\n")
+
+    except Exception as e:
+        print(f"[{PORT}] ❌ Failed during local training for round {round_num}: {e}")
+    break
+
 
     # Step 3: Upload
     try:
