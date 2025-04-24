@@ -66,7 +66,6 @@ def upload_model():
     return jsonify({"status": "received"})
 
 
-# Add to server.py
 ready_clients = set()
 
 @app.route("/ready", methods=["GET"])
@@ -78,6 +77,7 @@ def client_ready():
         ready_clients.clear()
         return jsonify({"go": True})
     return jsonify({"go": False})
+
 
 
 @app.route("/download", methods=["GET"])

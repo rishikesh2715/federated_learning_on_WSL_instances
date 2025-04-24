@@ -54,15 +54,17 @@ def wait_for_turn(port):
             print(f"[{port}] ❌ Sync error: {e}")
         time.sleep(1)
 
+
 # === Federated Learning Rounds ===
 model = MLP()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LR)
 
 for round in range(NUM_ROUNDS):
+    wait_for_turn(PORT)
     print(f"\n🔁 Round {round + 1}/{NUM_ROUNDS}")
 
-    wait_for_turn(PORT)
+
 
     # Step 1: Download latest global model
     try:
