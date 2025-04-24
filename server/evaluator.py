@@ -24,4 +24,5 @@ def evaluate_model(model):
             correct += (predicted == labels).sum().item()
 
     accuracy = 100.0 * correct / total
+    # print(f"Accuracy: {accuracy:.2f}%")
     return accuracy
