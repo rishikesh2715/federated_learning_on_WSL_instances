@@ -42,6 +42,17 @@ def train_local(model, optimizer, criterion):
             loss.backward()
             optimizer.step()
 
+def wait_for_turn(port):
+    while True:
+        try:
+            r = requests.get(f"{SERVER_URL}/ready?port={port}")
+            if r.json().get("go"):
+                break
+            print(f"[{port}] ⏳ Waiting for other client...")
+        except Exception as e:
+            print(f"[{port}] ❌ Sync error: {e}")
+        time.sleep(1)
+
 # === Federated Learning Rounds ===
 model = MLP()
 criterion = nn.CrossEntropyLoss()
@@ -49,6 +60,8 @@ optimizer = optim.SGD(model.parameters(), lr=LR)
 
 for round in range(NUM_ROUNDS):
     print(f"\n🔁 Round {round + 1}/{NUM_ROUNDS}")
+
+    wait_for_turn(PORT)
 
     # Step 1: Download latest global model
     try:
