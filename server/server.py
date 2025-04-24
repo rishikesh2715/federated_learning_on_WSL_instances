@@ -65,6 +65,21 @@ def upload_model():
 
     return jsonify({"status": "received"})
 
+
+# Add to server.py
+ready_clients = set()
+
+@app.route("/ready", methods=["GET"])
+def client_ready():
+    port = request.args.get("port")
+    ready_clients.add(port)
+
+    if ready_clients == set(EXPECTED_CLIENTS):
+        ready_clients.clear()
+        return jsonify({"go": True})
+    return jsonify({"go": False})
+
+
 @app.route("/download", methods=["GET"])
 def download_model():
     state_dict = model.state_dict()
