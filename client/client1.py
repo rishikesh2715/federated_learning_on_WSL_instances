@@ -97,7 +97,7 @@ for round_num in range(1, NUM_ROUNDS + 1):
 
     except Exception as e:
         print(f"[{PORT}] ❌ Failed during local training for round {round_num}: {e}")
-    break
+        break
 
 
     # Step 3: Upload
