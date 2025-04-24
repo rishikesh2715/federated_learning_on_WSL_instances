@@ -43,16 +43,33 @@ def train_local(model, optimizer, criterion):
             optimizer.step()
 
 
-def wait_for_turn(port):
+def wait_for_turn(port, target_round):
+    """Polls the server until it's ready for the target_round."""
     while True:
         try:
-            r = requests.get(f"{SERVER_URL}/ready?port={port}")
-            if r.json().get("go"):
+            # Pass the round the client is ready for
+            params = {'port': port, 'round': target_round}
+            r = requests.get(f"{SERVER_URL}/ready", params=params, timeout=10) # Add timeout
+            response_json = r.json()
+
+            if r.status_code == 200 and response_json.get("go"):
+                print(f"[{port}] ✅ Server ready for round {target_round}.")
                 break
-            print(f"[{port}] ⏳ Waiting for other client...")
+            elif r.status_code == 409: # Conflict (likely wrong round)
+                 server_expects = response_json.get("message", "unknown state")
+                 print(f"[{port}] ⏳ Waiting: Server not ready for round {target_round}. {server_expects}. Retrying...")
+            else:
+                 # Handle other potential non-200 responses if needed
+                 print(f"[{port}] ⏳ Waiting for server for round {target_round}... (Status: {r.status_code}, Response: {response_json})")
+
+        except requests.exceptions.Timeout:
+             print(f"[{port}] ⏳ Timeout connecting to server for /ready check. Retrying...")
+        except requests.exceptions.RequestException as e:
+            print(f"[{port}] ❌ Sync error (round {target_round}): {e}. Retrying...")
         except Exception as e:
-            print(f"[{port}] ❌ Sync error: {e}")
-        time.sleep(1)
+             print(f"[{port}] ❌ Unexpected error in wait_for_turn (round {target_round}): {e}")
+
+        time.sleep(2) # Increase sleep slightly to reduce spamming server
 
 
 # === Federated Learning Rounds ===
@@ -60,36 +77,77 @@ model = MLP()
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=LR)
 
-for round in range(NUM_ROUNDS):
+# NUM_ROUNDS defined in config
+for i in range(NUM_ROUNDS):
+    current_round = i + 1 # Rounds are 1-based
 
-    wait_for_turn(PORT)  # Synchronize with the other client
-    print(f"\n🔁 Round {round + 1}/{NUM_ROUNDS}")
+    print(f"\n--- [{PORT}] Attempting Round {current_round}/{NUM_ROUNDS} ---")
 
-    # # === STEP 0: Synchronize with the other client ===
-    # wait_for_turn(PORT)
+    # === STEP 0: Synchronize: Wait for server to be ready for THIS round ===
+    wait_for_turn(PORT, current_round)
 
-    # Step 1: Download latest global model
+    # === Step 1: Download latest global model ===
     try:
-        response = requests.get(f"{SERVER_URL}/download")
-        global_weights = deserialize_weights(response.json())
+        response = requests.get(f"{SERVER_URL}/download", timeout=10)
+        response.raise_for_status() # Raise an exception for bad status codes
+        data = response.json()
+        global_weights = deserialize_weights(data["weights"])
+        model_round = data.get("model_round", "N/A") # Get the round the model is from
         model.load_state_dict(global_weights)
-        print(f"[{PORT}] ✅ Downloaded global model.")
+        print(f"[{PORT}] ✅ Downloaded global model (from round {model_round}).")
     except Exception as e:
-        print(f"[{PORT}] ❌ Failed to download global model: {e}")
-        break
+        print(f"[{PORT}] ❌ Failed to download global model for round {current_round}: {e}")
+        print("Stopping client.")
+        break # Stop client if download fails
 
-    # Step 2: Train locally
-    train_local(model, optimizer, criterion)
-    print(f"[{PORT}] ✅ Local training done.")
-
-    # Step 3: Upload new weights
+    # === Step 2: Train locally ===
     try:
-        payload = serialize_weights(model.state_dict())
-        response = requests.post(f"{SERVER_URL}/upload?port={PORT}", json=payload)
-        print(f"[{PORT}] ✅ Uploaded model to server.")
+        print(f"[{PORT}] ⏳ Starting local training for round {current_round}...")
+        train_local(model, optimizer, criterion)
+        print(f"[{PORT}] ✅ Local training done for round {current_round}.")
     except Exception as e:
-        print(f"[{PORT}] ❌ Failed to upload model: {e}")
+        print(f"[{PORT}] ❌ Failed during local training for round {current_round}: {e}")
+        print("Stopping client.")
+        break # Stop client if training fails
+
+
+    # === Step 3: Upload new weights ===
+    retries = 3
+    upload_success = False
+    for attempt in range(retries):
+         try:
+            payload = serialize_weights(model.state_dict())
+            # Pass the current round number in the upload request
+            params = {'port': PORT, 'round': current_round}
+            response = requests.post(f"{SERVER_URL}/upload", params=params, json=payload, timeout=30) # Longer timeout for upload
+
+            if response.status_code == 200:
+                print(f"[{PORT}] ✅ Uploaded model to server for round {current_round}.")
+                upload_success = True
+                break # Success
+            elif response.status_code == 409: # Conflict, likely server advanced or client is lagging
+                 server_expects = response.json().get("message", "unknown state")
+                 print(f"[{PORT}] ⚠️ Upload rejected for round {current_round}. {server_expects}. (Attempt {attempt+1}/{retries})")
+                 # If server is ahead, maybe we need to skip or reset? For now, just retry/fail.
+                 time.sleep(3) # Wait before retrying
+            else:
+                response.raise_for_status() # Raise exception for other errors
+
+         except requests.exceptions.Timeout:
+             print(f"[{PORT}] ❌ Timeout uploading model for round {current_round}. (Attempt {attempt+1}/{retries})")
+             time.sleep(3)
+         except requests.exceptions.RequestException as e:
+             print(f"[{PORT}] ❌ Failed to upload model for round {current_round}: {e}. (Attempt {attempt+1}/{retries})")
+             time.sleep(3) # Wait before retrying
+         except Exception as e:
+             print(f"[{PORT}] ❌ Unexpected error during upload (round {current_round}): {e}")
+             break # Don't retry on unexpected errors
+
+    if not upload_success:
+        print(f"[{PORT}] ❌ Failed to upload model for round {current_round} after {retries} attempts. Stopping client.")
         break
 
-    # Short sleep to simulate network delay and stagger clients
-    time.sleep(1)
+    # Short sleep potentially helps stagger clients slightly if needed, but strict sync is primary goal
+    # time.sleep(1)
+
+print(f"--- [{PORT}] Client finished ---")
