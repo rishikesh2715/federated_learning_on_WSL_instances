@@ -31,15 +31,27 @@ def deserialize_weights(json_weights):
     return {k: torch.tensor(v) for k, v in json_weights.items()}
 
 # === Local Training ===
-def train_local(model, optimizer, criterion):
+def train_local(model, optimizer, criterion, dataloader):
     model.train()
-    for _ in range(EPOCHS_PER_ROUND):
-        for inputs, labels in train_loader:
-            inputs = inputs.view(inputs.size(0), -1)
-            optimizer.zero_grad()
-            loss = criterion(model(inputs), labels)
-            loss.backward()
-            optimizer.step()
+    total_loss, correct, total = 0.0, 0, 0
+
+    for inputs, labels in dataloader:
+        inputs = inputs.view(inputs.size(0), -1)
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        total_loss += loss.item() * inputs.size(0)
+        _, preds = torch.max(outputs, 1)
+        correct += (preds == labels).sum().item()
+        total += labels.size(0)
+
+    avg_loss = total_loss / total
+    accuracy = 100.0 * correct / total
+    return avg_loss, accuracy
+
 
 # === Round Sync ===
 def wait_for_turn(port, round_num):
