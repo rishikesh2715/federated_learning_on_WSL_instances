@@ -45,10 +45,13 @@ def train_local(model, optimizer, criterion):
 
 def wait_for_turn(port):
     while True:
-        r = requests.get(f"{SERVER_URL}/ready?port={port}")
-        if r.json().get("go"):
-            break
-        print(f"[{port}] ⏳ Waiting for other client...")
+        try:
+            r = requests.get(f"{SERVER_URL}/ready?port={port}")
+            if r.json().get("go"):
+                break
+            print(f"[{port}] ⏳ Waiting for other client...")
+        except Exception as e:
+            print(f"[{port}] ❌ Sync error: {e}")
         time.sleep(1)
 
 # === Federated Learning Rounds ===

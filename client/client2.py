@@ -42,6 +42,7 @@ def train_local(model, optimizer, criterion):
             loss.backward()
             optimizer.step()
 
+
 def wait_for_turn(port):
     while True:
         try:
