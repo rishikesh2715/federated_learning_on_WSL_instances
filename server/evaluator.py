@@ -27,4 +27,5 @@ def evaluate_model(model):
 
     avg_loss = total_loss / total
     accuracy = 100.0 * correct / total
+    print(f"Test Loss: {avg_loss:.4f}, Test Accuracy: {accuracy:.2f}%")
     return avg_loss, accuracy

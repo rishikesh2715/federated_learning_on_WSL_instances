@@ -152,5 +152,5 @@ for round_num in range(1, NUM_ROUNDS + 1):
 print(f"🏁 [{PORT}] Finished all rounds.")
 
 os.makedirs("models", exist_ok=True)
-save_model(model, f"models/{PORT}_final.pth")
+save_model(model, f"models/client1_{PORT}_final.pth")
 print(f"[{PORT}] 💾 Saved final model.")

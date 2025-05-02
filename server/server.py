@@ -12,7 +12,7 @@ from client.model import save_model
 
 app = Flask(__name__)
 model = MLP()
-# model.load_state_dict(torch.load("models/global_model_pretrained.pth"))
+model.load_state_dict(torch.load("models/global_model_pretrained.pth"))
 
 
 NUM_ROUNDS = 20
@@ -65,7 +65,7 @@ def upload_model():
             print(f"📊 Round {client_round} - Global Acc: {acc:.2f}% | Loss: {loss:.4f}")
 
             # Save accuracy to a log file
-            log_path = "server/global_log.csv"
+            log_path = "server/global_log_pre.csv"
             write_header = not os.path.exists(log_path)
 
             with open(log_path, "a") as f:
@@ -76,7 +76,7 @@ def upload_model():
             # ✅ Only save after final round
             if client_round == NUM_ROUNDS:
                 os.makedirs("models", exist_ok=True)
-                save_model(model, "models/global_model_final.pth")
+                save_model(model, "models/global_model_pre.pth")
                 print(f"💾 Saved global model after final round {client_round}.")
 
 

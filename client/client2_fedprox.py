@@ -139,7 +139,7 @@ for round_num in range(1, NUM_ROUNDS + 1):
         print(f"[{PORT}] ✅ Round {round_num} - Train Loss: {train_loss:.4f}, Acc: {train_acc:.2f}% | Val Loss: {val_loss:.4f}, Acc: {val_acc:.2f}%")
 
         # Save to CSV
-        log_path = f"client/{PORT}_log.csv"
+        log_path = f"client/Pre_{PORT}_log.csv"
         write_header = not os.path.exists(log_path)
         with open(log_path, "a") as f:
             if write_header:
@@ -168,5 +168,5 @@ for round_num in range(1, NUM_ROUNDS + 1):
 print(f"🏁 [{PORT}] Finished all rounds.")
 
 os.makedirs("models", exist_ok=True)
-save_model(model, f"models/{PORT}_final.pth")
+save_model(model, f"models/client2_FedProx_{PORT}_final.pth")
 print(f"[{PORT}] 💾 Saved final model.")
